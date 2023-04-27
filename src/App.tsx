@@ -9,7 +9,14 @@ import { useEffect, useState } from "react";
 import { Connection, JsonRpcProvider } from "@mysten/sui.js";
 
 import BigNumber from "bignumber.js";
-import { useGetFarm, useGetPendingRewards, useGetPoolInfo } from "./hooks";
+import {
+  useGetDepositValue,
+  useGetFarm,
+  useGetObject,
+  useGetPendingRewards,
+  useGetPoolInfo,
+} from "./hooks";
+import { OBJECT_RECORD } from "./config";
 
 const parseSuiRawDataToFarms = (x: ReadonlyArray<ReadonlyArray<BigInt>>) =>
   x.map((elem: ReadonlyArray<BigInt>) => ({
@@ -27,23 +34,27 @@ function App() {
     signMessage,
   } = useWalletKit();
 
-  useGetPoolInfo();
-  const id = "0x2::sui::SUI";
-  const data = useGetFarm(id, currentAccount?.address ||
-      "0x0000000000000000000000000000000000000000000000000000000000000000"
-  );
-  console.log("--------------Farm-------------", data);
+  // useGetPoolInfo();
+  // const id = "0x2::sui::SUI";
+  // const data = useGetFarm(id, currentAccount?.address ||
+  //     "0x0000000000000000000000000000000000000000000000000000000000000000"
+  // );
+  // console.log("--------------Farm-------------", data);
 
-  const pendingRewards = useGetPendingRewards(
-    currentAccount?.address ||
-      "0x0000000000000000000000000000000000000000000000000000000000000000"
-  );
+  // const pendingRewards = useGetPendingRewards(
+  //   currentAccount?.address ||
+  //     "0x0000000000000000000000000000000000000000000000000000000000000000"
+  // );
 
-  console.log("--------------Pendingrewards-------------", pendingRewards);
+  const depositValue = useGetDepositValue();
+  console.log("Deposit value -------------", depositValue);
 
-  useEffect(() => {
-    // You can do something with `currentWallet` here.
-  }, [currentWallet]);
+  useGetObject(OBJECT_RECORD.MASTERCHEF_STORAGE);
+  // console.log("--------------Pendingrewards-------------", pendingRewards);
+
+  // useEffect(() => {
+  //   // You can do something with `currentWallet` here.
+  // }, [currentWallet]);
 
   const testNetProvider = new JsonRpcProvider(
     new Connection({
@@ -53,16 +64,65 @@ function App() {
     })
   );
 
-  const [balance,setAccountBalance] = useState ("0");
-  useEffect (()=>{
-    const getbalance = async() =>{
-      let accountBalance =await testNetProvider.getBalance({owner:'0x7bfd5325cb4641b13101d92fc31fe058c23e9efa4fabd45b895bb7e44ae45ba9'});
-      setAccountBalance(accountBalance?.totalBalance || "0");
-      console.log("Account balance",balance);
-    }
-    getbalance();
-  })
-  
+  // const [balance,setAccountBalance] = useState ("0");
+  // useEffect (()=>{
+  //   const getbalance = async() =>{
+  //     let accountBalance =await testNetProvider.getBalance({owner:'0x7bfd5325cb4641b13101d92fc31fe058c23e9efa4fabd45b895bb7e44ae45ba9'});
+  //     setAccountBalance(accountBalance?.totalBalance || "0");
+  //     console.log("Account balance",balance);
+  //   }
+  //   getbalance();
+  // })
+
+  const addPool = async () => {
+    const txb = new TransactionBlock();
+    console.log(
+      "--------------------------Starting Staking----------------------"
+    );
+    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    txb.moveCall({
+      target: `${packageObjectId}::master_chef::add_pool`,
+      arguments: [
+        txb.object(OBJECT_RECORD.MASTERCHEF_ADMIN),
+        txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEF_ACCOUNT_STORAGE),
+        txb.object(OBJECT_RECORD.CLOCK_OBJECT),
+        txb.pure(100),
+      ],
+      typeArguments: ["0x2::sui::SUI"],
+    });
+    txb.setGasBudget(300000000);
+    const tx = await signAndExecuteTransactionBlock({
+      transactionBlock: txb,
+      requestType: "WaitForEffectsCert",
+      options: { showEffects: true },
+    });
+    console.log(tx);
+  };
+
+  const addMinter = async () => {
+    const txb = new TransactionBlock();
+    console.log(
+      "--------------------------Starting Staking----------------------"
+    );
+    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    txb.moveCall({
+      target: `${packageObjectId}::ipx::add_minter`,
+      arguments: [
+        txb.object(OBJECT_RECORD.IPXADMIN_CAP),
+        txb.object(OBJECT_RECORD.IPXSTORAGE),
+        txb.object(OBJECT_RECORD.PUBLISHER),
+      ],
+      typeArguments: [],
+    });
+    txb.setGasBudget(300000000);
+    const tx = await signAndExecuteTransactionBlock({
+      transactionBlock: txb,
+      requestType: "WaitForEffectsCert",
+      options: { showEffects: true },
+    });
+    console.log(tx);
+  };
 
   const buy = async () => {
     const txb = new TransactionBlock();
@@ -93,35 +153,65 @@ function App() {
     );
   };
 
+  const deposit = async () => {
+    const txb = new TransactionBlock();
+    const [coin] = txb.splitCoins(txb.gas, [txb.pure(500000000)]);
+    console.log("-------------Starting Deposit-----------------");
+    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    txb.moveCall({
+      target: `${packageObjectId}::master_chef::deposit`,
+      arguments: [txb.object(OBJECT_RECORD.MASTERCHEF_BALANCE), coin],
+      typeArguments: [],
+    });
+    txb.setGasBudget(300000000);
+    const tx = await signAndExecuteTransactionBlock({
+      transactionBlock: txb,
+      requestType: "WaitForEffectsCert",
+      options: { showEffects: true },
+    });
+    console.log(tx);
+  };
+
+  const Withdraw = async () => {
+    const txb = new TransactionBlock();
+    console.log("-------------Starting Withdraw--------------");
+    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    txb.moveCall({
+      target: `${packageObjectId}::master_chef::withdraw`,
+      arguments: [
+        txb.object(OBJECT_RECORD.MASTERCHEF_ADMIN),
+        txb.object(OBJECT_RECORD.MASTERCHEF_BALANCE),
+        txb.pure(500000000),
+      ],
+      typeArguments: [],
+    });
+    txb.setGasBudget(300000000);
+    const tx = await signAndExecuteTransactionBlock({
+      transactionBlock: txb,
+      requestType: "WaitForEffectsCert",
+      options: { showEffects: true },
+    });
+    console.log(tx);
+  };
+
   const staking = async () => {
     const txb = new TransactionBlock();
-    const [coin] = txb.splitCoins(txb.gas, [txb.pure(1000000000)]);
-    // console.log(
-    //   await signAndExecuteTransactionBlock({ transactionBlock: txb })
-    // );
+    const [coin] = txb.splitCoins(txb.gas, [txb.pure(200000000)]);
     console.log(
       "--------------------------Starting Staking----------------------"
     );
-    const packageObjectId =
-      "0xd456287c633d1d165e7ce55844f0deb168353f78301141ea7085a52b427a1d12";
+    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
     txb.moveCall({
       target: `${packageObjectId}::interface::stake`,
       arguments: [
-        txb.object(
-          "0xce299f8b767395420500434d27f98aef54b5cedb064f1463533579fa5e9172cb"
-        ),
-        txb.object(
-          "0xc302cf5542637507e8237343e6f381b206be1cb3ba737f7fd8a013f848bf828b"
-        ),
-        txb.object(
-          "0xbeb57d11545e9a2526c0cad63ae9c72c2f0d2bed1916b2690761fd2c35279a86"
-        ),
-        txb.object(
-          "0x0000000000000000000000000000000000000000000000000000000000000006"
-        ),
+        txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEF_BALANCE),
+        txb.object(OBJECT_RECORD.MASTERCHEF_ACCOUNT_STORAGE),
+        txb.object(OBJECT_RECORD.IPXSTORAGE),
+        txb.object(OBJECT_RECORD.CLOCK_OBJECT),
         coin,
       ],
-      typeArguments: ["0x2::sui::SUI"],
+      typeArguments: [],
     });
     txb.setGasBudget(300000000);
     const tx = await signAndExecuteTransactionBlock({
@@ -134,32 +224,21 @@ function App() {
 
   const unstaking = async () => {
     const txb = new TransactionBlock();
-    // console.log(
-    //   await signAndExecuteTransactionBlock({ transactionBlock: txb })
-    // );
     console.log(
       "--------------------------Starting Staking----------------------"
     );
-    const packageObjectId =
-      "0xd456287c633d1d165e7ce55844f0deb168353f78301141ea7085a52b427a1d12";
+    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
     txb.moveCall({
       target: `${packageObjectId}::interface::unstake`,
       arguments: [
-        txb.object(
-          "0xce299f8b767395420500434d27f98aef54b5cedb064f1463533579fa5e9172cb"
-        ),
-        txb.object(
-          "0xc302cf5542637507e8237343e6f381b206be1cb3ba737f7fd8a013f848bf828b"
-        ),
-        txb.object(
-          "0xbeb57d11545e9a2526c0cad63ae9c72c2f0d2bed1916b2690761fd2c35279a86"
-        ),
-        txb.object(
-          "0x0000000000000000000000000000000000000000000000000000000000000006"
-        ),
-        txb.pure(1000000000),
+        txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEF_BALANCE),
+        txb.object(OBJECT_RECORD.MASTERCHEF_ACCOUNT_STORAGE),
+        txb.object(OBJECT_RECORD.IPXSTORAGE),
+        txb.object(OBJECT_RECORD.CLOCK_OBJECT),
+        txb.pure(200000000),
       ],
-      typeArguments: ["0x2::sui::SUI"],
+      typeArguments: [],
     });
     txb.setGasBudget(300000000);
     const tx = await signAndExecuteTransactionBlock({
@@ -288,6 +367,18 @@ function App() {
         <button onClick={getFarm}>getfarm</button>
 
         <button onClick={testFarmHook}>Unstaking</button>
+      </div>
+
+      <div>
+        <button onClick={deposit}>Deposit</button>
+
+        <button onClick={Withdraw}>Withdraw</button>
+      </div>
+
+      <div>
+        <button onClick={addMinter}>Add minter</button>
+
+        <button onClick={addPool}>Add Pool</button>
       </div>
     </div>
   );

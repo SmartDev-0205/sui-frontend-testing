@@ -6,12 +6,11 @@ import {
 } from '../utils';
 import { useMemo, useState } from 'react';
 import { Connection, JsonRpcProvider } from "@mysten/sui.js";
-import BigNumber from 'bignumber.js';
 
 const getProvider = () => {
     return new JsonRpcProvider(
         new Connection({
-            fullnode: "https://fullnode.testnet.sui.io:443",
+            fullnode: "https://wallet-rpc.testnet.sui.io/",
             websocket: "wss://fullnode.testnet.sui.io:443",
             faucet: "https://faucet.testnet.sui.io/gas",
         }))
@@ -154,4 +153,59 @@ export const useGetPoolInfo = () => {
         getPoolInfo();
     }, [])
     return data;
+};
+
+
+
+export const useGetDepositValue = () => {
+    const [data, setdata] = useState<{}>();
+    useMemo(() => {
+        const getDepositValue = async () => {
+            const txb = new TransactionBlock();
+            const packageId = OBJECT_RECORD.PACKAGE_ID;
+            const balanceStorage = OBJECT_RECORD.MASTERCHEF_BALANCE;
+            txb.moveCall({
+                target: `${packageId}::master_chef::get_currrent_value`,
+                typeArguments: [],
+                arguments: [
+                    txb.object(balanceStorage),
+                ],
+            });
+
+            let provider = getProvider();
+            const result = await provider.devInspectTransactionBlock({
+                transactionBlock: txb,
+                sender: OBJECT_RECORD.AddressZero,
+            });
+
+            const returnValues = result!["results"]![0]!["returnValues"];
+            console.log("pool------------",returnValues);
+            
+            let depositValue = bcsForVersion(await provider.getRpcApiVersion()).de(
+                returnValues![0]![1],
+                Uint8Array.from(returnValues![0]![0])
+            );
+
+            console.log("pool result-------------",depositValue);
+            setdata(depositValue)
+        }
+        getDepositValue();
+    }, [])
+    return data;
+};
+
+
+
+export const useGetObject = (objectAddress:string) => {
+    useMemo(() => {
+        const getDepositValue = async () => {
+            let provider = getProvider();
+            let rpcOption = {
+                showContent:true
+            }
+            let result = await provider.getObject({id:objectAddress,options:rpcOption});
+            console.log("publisher------------------",result);
+        }
+        getDepositValue();
+    }, [])
 };
