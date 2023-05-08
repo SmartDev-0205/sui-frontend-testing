@@ -10,6 +10,7 @@ import { Connection, JsonRpcProvider } from "@mysten/sui.js";
 
 import BigNumber from "bignumber.js";
 import {
+  useGetAccountInfo,
   useGetDepositValue,
   useGetFarm,
   useGetObject,
@@ -17,6 +18,16 @@ import {
   useGetPoolInfo,
 } from "./hooks";
 import { OBJECT_RECORD } from "./config";
+
+const TOKENOBJECT = {
+  PACKAGEID:
+    "0xf89208939d0c37f582e3273852d953dcd1aced0b74c66b9269b6ebfdeccb3b29",
+  SAPE: "0x75b49159415aa15e8d74680108edf690917e43de36796231a1eab22c4f470ff3::SAPE::SAPE",
+  TOKENBalanceStorage:
+    "0x7c34ca978a82bc3581209491489275d28dea879eb0f8aaeeeec401109f32eacb",
+  TreasuryCap:
+    "0xaa2003f9e6b7d85cc26eaab024b12aa7d875639e9cd13499ffeb585c89c25200",
+};
 
 const parseSuiRawDataToFarms = (x: ReadonlyArray<ReadonlyArray<BigInt>>) =>
   x.map((elem: ReadonlyArray<BigInt>) => ({
@@ -46,10 +57,11 @@ function App() {
   //     "0x0000000000000000000000000000000000000000000000000000000000000000"
   // );
 
+  useGetAccountInfo(currentAccount?.address || OBJECT_RECORD.AddressZero);
   const depositValue = useGetDepositValue();
   console.log("Deposit value -------------", depositValue);
 
-  useGetObject(OBJECT_RECORD.MASTERCHEF_STORAGE);
+  useGetObject(OBJECT_RECORD.MASTERCHEFSTORAGE);
   // console.log("--------------Pendingrewards-------------", pendingRewards);
 
   // useEffect(() => {
@@ -79,13 +91,13 @@ function App() {
     console.log(
       "--------------------------Starting Staking----------------------"
     );
-    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    const packageObjectId = OBJECT_RECORD.PACKAGEID;
     txb.moveCall({
       target: `${packageObjectId}::master_chef::add_pool`,
       arguments: [
-        txb.object(OBJECT_RECORD.MASTERCHEF_ADMIN),
-        txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
-        txb.object(OBJECT_RECORD.MASTERCHEF_ACCOUNT_STORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEFADMIN),
+        txb.object(OBJECT_RECORD.MASTERCHEFSTORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEFACCOUNTSTORAGE),
         txb.object(OBJECT_RECORD.CLOCK_OBJECT),
         txb.pure(100),
       ],
@@ -105,11 +117,11 @@ function App() {
     console.log(
       "--------------------------Starting Staking----------------------"
     );
-    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    const packageObjectId = OBJECT_RECORD.PACKAGEID;
     txb.moveCall({
       target: `${packageObjectId}::ipx::add_minter`,
       arguments: [
-        txb.object(OBJECT_RECORD.IPXADMIN_CAP),
+        txb.object(OBJECT_RECORD.IPXADMINCAP),
         txb.object(OBJECT_RECORD.IPXSTORAGE),
         txb.object(OBJECT_RECORD.PUBLISHER),
       ],
@@ -155,12 +167,12 @@ function App() {
 
   const deposit = async () => {
     const txb = new TransactionBlock();
-    const [coin] = txb.splitCoins(txb.gas, [txb.pure(500000000)]);
+    const [coin] = txb.splitCoins(txb.gas, [txb.pure(100000000)]);
     console.log("-------------Starting Deposit-----------------");
-    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    const packageObjectId = OBJECT_RECORD.PACKAGEID;
     txb.moveCall({
       target: `${packageObjectId}::master_chef::deposit`,
-      arguments: [txb.object(OBJECT_RECORD.MASTERCHEF_BALANCE), coin],
+      arguments: [txb.object(OBJECT_RECORD.MASTERCHEFBALANCE), coin],
       typeArguments: [],
     });
     txb.setGasBudget(300000000);
@@ -175,13 +187,36 @@ function App() {
   const Withdraw = async () => {
     const txb = new TransactionBlock();
     console.log("-------------Starting Withdraw--------------");
-    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    const packageObjectId = OBJECT_RECORD.PACKAGEID;
     txb.moveCall({
       target: `${packageObjectId}::master_chef::withdraw`,
       arguments: [
-        txb.object(OBJECT_RECORD.MASTERCHEF_ADMIN),
-        txb.object(OBJECT_RECORD.MASTERCHEF_BALANCE),
-        txb.pure(500000000),
+        txb.object(OBJECT_RECORD.MASTERCHEFADMIN),
+        txb.object(OBJECT_RECORD.MASTERCHEFBALANCE),
+        txb.pure(100000000),
+      ],
+      typeArguments: [],
+    });
+    txb.setGasBudget(300000000);
+    const tx = await signAndExecuteTransactionBlock({
+      transactionBlock: txb,
+      requestType: "WaitForEffectsCert",
+      options: { showEffects: true },
+    });
+    console.log(tx);
+  };
+
+  const claim = async () => {
+    const txb = new TransactionBlock();
+    console.log("-------------Starting claim--------------");
+    const packageObjectId = OBJECT_RECORD.PACKAGEID;
+    txb.moveCall({
+      target: `${packageObjectId}::master_chef::claim_reward`,
+      arguments: [
+        txb.object(OBJECT_RECORD.MASTERCHEFSTORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEFBALANCE),
+        txb.object(OBJECT_RECORD.MASTERCHEFACCOUNTSTORAGE),
+        txb.object(OBJECT_RECORD.CLOCK_OBJECT),
       ],
       typeArguments: [],
     });
@@ -200,14 +235,18 @@ function App() {
     console.log(
       "--------------------------Starting Staking----------------------"
     );
-    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    const packageObjectId = OBJECT_RECORD.PACKAGEID;
     txb.moveCall({
       target: `${packageObjectId}::interface::stake`,
       arguments: [
-        txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
-        txb.object(OBJECT_RECORD.MASTERCHEF_BALANCE),
-        txb.object(OBJECT_RECORD.MASTERCHEF_ACCOUNT_STORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEFSTORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEFBALANCE),
+        txb.object(OBJECT_RECORD.MASTERCHEFACCOUNTSTORAGE),
         txb.object(OBJECT_RECORD.IPXSTORAGE),
+        txb.pure(
+          "0x65770084cf0b861c9d07fbf92db962d60fc5ab5cc2d0851a789a87f5b389cf46"
+          // "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ),
         txb.object(OBJECT_RECORD.CLOCK_OBJECT),
         coin,
       ],
@@ -227,16 +266,16 @@ function App() {
     console.log(
       "--------------------------Starting Staking----------------------"
     );
-    const packageObjectId = OBJECT_RECORD.PACKAGE_ID;
+    const packageObjectId = OBJECT_RECORD.PACKAGEID;
     txb.moveCall({
       target: `${packageObjectId}::interface::unstake`,
       arguments: [
-        txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
-        txb.object(OBJECT_RECORD.MASTERCHEF_BALANCE),
-        txb.object(OBJECT_RECORD.MASTERCHEF_ACCOUNT_STORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEFSTORAGE),
+        txb.object(OBJECT_RECORD.MASTERCHEFBALANCE),
+        txb.object(OBJECT_RECORD.MASTERCHEFACCOUNTSTORAGE),
         txb.object(OBJECT_RECORD.IPXSTORAGE),
         txb.object(OBJECT_RECORD.CLOCK_OBJECT),
-        txb.pure(200000000),
+        txb.pure(190000000),
       ],
       typeArguments: [],
     });
@@ -302,6 +341,45 @@ function App() {
 
   const testFarmHook = async () => {};
 
+  const sapeDeposit = async () => {
+    const txb = new TransactionBlock();
+    const coin = txb.pure(TOKENOBJECT.SAPE, '100000000');
+    console.log("one",coin);
+    // console.log("-------------Starting Deposit-----------------");
+    // const packageObjectId = OBJECT_RECORD.PACKAGEID;
+    // txb.moveCall({
+    //   target: `${packageObjectId}::SAPE::deposit`,
+    //   arguments: [txb.object(TOKENOBJECT.TOKENBalanceStorage), coin,],
+    //   typeArguments: [],
+    // });
+    // txb.setGasBudget(100000000);
+    // const tx = await signAndExecuteTransactionBlock({
+    //   transactionBlock: txb,
+    //   requestType: "WaitForEffectsCert",
+    //   options: { showEffects: true },
+    // });
+    // console.log(tx);
+  };
+
+  const sapebuy = async () => {
+    const txb = new TransactionBlock();
+    const [coin] = txb.splitCoins(txb.gas, [txb.pure(100000000)]);
+    console.log("-------------Starting Deposit-----------------");
+    const packageObjectId = TOKENOBJECT.PACKAGEID;
+    txb.moveCall({
+      target: `${packageObjectId}::SAPE::buy`,
+      arguments: [txb.object(TOKENOBJECT.TOKENBalanceStorage), coin,txb.pure(100000000000)],
+      typeArguments: [],
+    });
+    txb.setGasBudget(300000000);
+    const tx = await signAndExecuteTransactionBlock({
+      transactionBlock: txb,
+      requestType: "WaitForEffectsCert",
+      options: { showEffects: true },
+    });
+    console.log(tx);
+  };
+
   return (
     <div className="App">
       <ConnectButton />
@@ -366,7 +444,7 @@ function App() {
       <div>
         <button onClick={getFarm}>getfarm</button>
 
-        <button onClick={testFarmHook}>Unstaking</button>
+        <button onClick={testFarmHook}>testFarmHook</button>
       </div>
 
       <div>
@@ -376,9 +454,21 @@ function App() {
       </div>
 
       <div>
+        <button onClick={claim}>Claim</button>
+
+        <button onClick={Withdraw}>Withdraw</button>
+      </div>
+
+      <div>
         <button onClick={addMinter}>Add minter</button>
 
         <button onClick={addPool}>Add Pool</button>
+      </div>
+
+      <div>
+        <button onClick={sapeDeposit}>sape deposit</button>
+
+        <button onClick={sapebuy}>sape buy</button>
       </div>
     </div>
   );

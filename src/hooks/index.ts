@@ -10,9 +10,9 @@ import { Connection, JsonRpcProvider } from "@mysten/sui.js";
 const getProvider = () => {
     return new JsonRpcProvider(
         new Connection({
-            fullnode: "https://wallet-rpc.testnet.sui.io/",
-            websocket: "wss://fullnode.testnet.sui.io:443",
-            faucet: "https://faucet.testnet.sui.io/gas",
+            fullnode: "https://wallet-rpc.devnet.sui.io/",
+            websocket: "wss://fullnode.devnet.sui.io:443",
+            faucet: "https://faucet.devnet.sui.io/gas",
         }))
 }
 
@@ -24,10 +24,10 @@ export const useGetFarm = (id: string, account: string) => {
         const getFarms = async () => {
             const txb = new TransactionBlock();
             txb.moveCall({
-                target: `${OBJECT_RECORD.PACKAGE_ID}::interface::get_farms`,
+                target: `${OBJECT_RECORD.PACKAGEID}::interface::get_farms`,
                 arguments: [
-                    txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
-                    txb.object(OBJECT_RECORD.MASTERCHEF_ACCOUNT_STORAGE),
+                    txb.object(OBJECT_RECORD.MASTERCHEFSTORAGE),
+                    txb.object(OBJECT_RECORD.MASTERCHEFACCOUNTSTORAGE),
                     txb.pure(account || OBJECT_RECORD.AddressZero),
                     txb.pure(1),
                 ],
@@ -66,12 +66,12 @@ export const useGetPendingRewards = (
             const txb = new TransactionBlock();
             console.log("address -----------------", account);
             txb.moveCall({
-                target: `${OBJECT_RECORD.PACKAGE_ID}::master_chef::get_pending_rewards`,
+                target: `${OBJECT_RECORD.PACKAGEID}::master_chef::get_pending_rewards`,
                 typeArguments: ["0x2::sui::SUI"],
-                // typeArguments: [`${OBJECT_RECORD.PACKAGE_ID}::ipx::IPX`],
+                // typeArguments: [`${OBJECT_RECORD.PACKAGEID}::ipx::IPX`],
                 arguments: [
-                    txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
-                    txb.object(OBJECT_RECORD.MASTERCHEF_ACCOUNT_STORAGE),
+                    txb.object(OBJECT_RECORD.MASTERCHEFSTORAGE),
+                    txb.object(OBJECT_RECORD.MASTERCHEFACCOUNTSTORAGE),
                     txb.object(OBJECT_RECORD.CLOCK_OBJECT),
                     txb.pure(account || OBJECT_RECORD.AddressZero),
                 ],
@@ -105,10 +105,10 @@ export const useGetPoolInfo = () => {
         const getPoolInfo = async () => {
             const txb = new TransactionBlock();
             txb.moveCall({
-                target: `${OBJECT_RECORD.PACKAGE_ID}::master_chef::get_pool_info`,
+                target: `${OBJECT_RECORD.PACKAGEID}::master_chef::get_pool_info`,
                 typeArguments: ["0x2::sui::SUI"],
                 arguments: [
-                    txb.object(OBJECT_RECORD.MASTERCHEF_STORAGE),
+                    txb.object(OBJECT_RECORD.MASTERCHEFSTORAGE),
                 ],
             });
 
@@ -162,8 +162,8 @@ export const useGetDepositValue = () => {
     useMemo(() => {
         const getDepositValue = async () => {
             const txb = new TransactionBlock();
-            const packageId = OBJECT_RECORD.PACKAGE_ID;
-            const balanceStorage = OBJECT_RECORD.MASTERCHEF_BALANCE;
+            const packageId = OBJECT_RECORD.PACKAGEID;
+            const balanceStorage = OBJECT_RECORD.MASTERCHEFBALANCE;
             txb.moveCall({
                 target: `${packageId}::master_chef::get_currrent_value`,
                 typeArguments: [],
@@ -208,4 +208,77 @@ export const useGetObject = (objectAddress:string) => {
         }
         getDepositValue();
     }, [])
+};
+
+
+export const useGetAccountInfo = (account: string) => {
+
+    const [data, setdata] = useState<{}>(NaN);
+    console.log("current -account----------",account);
+
+    useMemo(() => {
+        const getAccount = async () => {
+            const txb = new TransactionBlock();
+            txb.moveCall({
+                target: `${OBJECT_RECORD.PACKAGEID}::master_chef::get_account_detail`,
+                arguments: [
+                    txb.object(OBJECT_RECORD.MASTERCHEFSTORAGE),
+                    txb.object(OBJECT_RECORD.MASTERCHEFACCOUNTSTORAGE),
+                    txb.pure(account || OBJECT_RECORD.AddressZero),
+                ],
+                typeArguments: [],
+            });
+            let provider = getProvider();
+            const result = await provider.devInspectTransactionBlock({
+                transactionBlock: txb,
+                sender: account || OBJECT_RECORD.AddressZero,
+            });
+
+            if (result!["results"]){
+
+                const returnValues = result!["results"]![0]!["returnValues"];
+                let totalStaked = bcsForVersion(await provider.getRpcApiVersion()).de(
+                    returnValues![0]![1],
+                    Uint8Array.from(returnValues![0]![0])
+                );
+    
+                let totalRewards = bcsForVersion(await provider.getRpcApiVersion()).de(
+                    returnValues![3]![1],
+                    Uint8Array.from(returnValues![3]![0])
+                );
+    
+                let totalUsers = bcsForVersion(await provider.getRpcApiVersion()).de(
+                    returnValues![2]![1],
+                    Uint8Array.from(returnValues![2]![0])
+                );
+    
+                let unclaimedRewards = bcsForVersion(await provider.getRpcApiVersion()).de(
+                    returnValues![4]![1],
+                    Uint8Array.from(returnValues![4]![0])
+                );
+    
+                const results = {
+                    TotalStaked: totalStaked,
+                    TotalRewards: totalRewards,
+                    TotalUsers: totalUsers,
+                    UnclaimedRewards: unclaimedRewards,
+                }
+
+                console.log("result-----",results);
+                setdata(results);
+            }else{
+                const results = {
+                    TotalStaked: 0,
+                    TotalRewards: 0,
+                    TotalUsers: 0,
+                    UnclaimedRewards: 0,
+                }
+                setdata(results);
+            }
+            console.log("Account info -----------------", data);
+        }
+        getAccount()
+    }, [account])
+
+    return data;
 };
